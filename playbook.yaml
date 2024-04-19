@@ -1,0 +1,101 @@
+- name: Docker setup
+  hosts: myhosts
+  become: yes
+  tasks:
+
+  - name: remove old packages
+    ansible.builtin.apt:
+      name: 
+      - docker.io
+      - docker-doc
+      - docker-compose
+      - docker-compose-v2
+      - podman-docker
+      - containerd
+      - runc
+      state: absent
+
+  - name: update os
+    ansible.builtin.apt:
+      update_cache: yes
+
+  - name: install necessary packages
+    ansible.builtin.apt:
+      pkg:
+      - ca-certificates
+      - curl
+
+  - name: Create directory keyrings
+    ansible.builtin.file:
+      path: /etc/apt/keyrings
+      state: directory
+      mode: '0755'
+
+  - name: run curl command
+    ansible.builtin.command:
+      argv:
+      - curl
+      - -fsSL
+      - https://download.docker.com/linux/ubuntu/gpg
+      - -o
+      - /etc/apt/keyrings/docker.asc
+
+  - name: chmod of previous downloaded file 
+    ansible.builtin.command:
+      argv:
+      - chmod
+      - a+r
+      - /etc/apt/keyrings/docker.asc
+
+  - name: add the repository to Apt sources
+    ansible.builtin.shell:
+      cmd: echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
+
+  - name: install docker packages
+    ansible.builtin.apt:
+      update_cache: yes
+      pkg:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+
+  - name: enable and start docker service
+    ansible.builtin.systemd_service:
+      name: docker
+      state: started
+      enabled: true
+
+  ## SONARQUBE SERVER AND POSTGRESQL DATABASE SETUP 
+- name: Sonarqube setup
+  hosts: myhosts
+  vars:
+    jdk: 17
+  tasks:
+
+  - name: Update os
+    ansible.builtin.apt:
+      update_cache: yes
+
+  - name: Install java {{ jdk }}
+    ansible.builtin.apt:
+      name: openjdk-{{ jdk }}-jdk
+      state: present
+  
+  - name: Create sonarqube container
+    community.docker.docker_container:
+      name: sonarqube
+      image: sonarqube
+      state: started
+      recreate: true
+      ports:
+      - "9000:9000"
+      volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+
+  
+
+
